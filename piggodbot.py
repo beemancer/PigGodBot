@@ -16,6 +16,8 @@ SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 client = discord.Client()
 
+commandPrefix = '$'
+
 @client.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
@@ -25,26 +27,38 @@ async def on_message(message):
     if message.author == client.user:
         return
 
-    if message.content.startswith('$help'):
-        await message.channel.send("The only commands are $eq <timezone>, $eqe, $eqw, and $eqc, how much help could you need?")
-        return
+    if message.content.startswith(commandPrefix):
+        content = message.content[1:]
 
-    if message.content.startswith('$eqe'):
-        await PrintEq(message, 'America/New_York')
-        return
+        if content.startswith('help'):
+            helpMessage = '**Available commands:**\n```' + \
+                commandPrefix+'eq <timezone> - Prints out the upcoming EQs in whatever timezone\n' + \
+                commandPrefix+'eqw - Prints out the upcoming EQs in US Best Coast time\n' + \
+                commandPrefix+'eqe - Prints out the upcoming EQs in US East time\n' + \
+                commandPrefix+'eqc - Prints out the upcoming EQs in US Central time\n' + \
+                '```'
+            await message.channel.send(helpMessage)
+            return
 
-    if message.content.startswith('$eqw'):
-        await PrintEq(message, 'America/Los_Angeles')
-        return
+        if content.startswith('eqe'):
+            await PrintEq(message, 'America/New_York')
+            return
 
-    if message.content.startswith('$eqc'):
-        await PrintEq(message, 'America/Chicago')
-        return
+        if content.startswith('eqw'):
+            await PrintEq(message, 'America/Los_Angeles')
+            return
 
-    if message.content.startswith('$eq '):
-        args = message.content.split()
-        await PrintEq(message, args[1])
-        return
+        if content.startswith('eqc'):
+            await PrintEq(message, 'America/Chicago')
+            return
+
+        if content.startswith('eq'):
+            args = message.content.split()
+            if len(args) > 1:
+                await PrintEq(message, args[1])
+            else:
+                await PrintEq(message, 'UTC')
+            return
 
 async def PrintEq(message, tzReq):
     creds = None
