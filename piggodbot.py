@@ -60,6 +60,11 @@ async def on_message(message):
                 await PrintEq(message, 'UTC')
             return
 
+    if 'techer' in message.content.lower():
+        await message.add_reaction('<:Techer:645433477088411680>')
+        await message.add_reaction('<:Force:645433476979621889>')
+        return
+
 async def PrintEq(message, tzReq):
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
