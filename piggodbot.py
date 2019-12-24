@@ -83,4 +83,6 @@ async def PrintEq(message, tzReq):
     await message.channel.send(strEvents)
     return
 
-client.run('NjU4ODY2MDAwNDg1MTU0ODU2.XgGAgw.rJlVy3cxp43grg4ueTY-f-_1kWo')
+tokenFile = open("bottoken", 'r')
+client.run(tokenFile.readline())
+tokenFile.close()
