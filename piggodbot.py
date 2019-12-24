@@ -73,13 +73,14 @@ async def PrintEq(message, tzReq):
         orderBy='startTime').execute()
     events = events_result.get('items', [])
 
-    strEvents = 'Upcoming events (' + tzReq +'):\n'
+    strEvents = '**Upcoming events (' + tzReq +'):**\n```'
     if not events:
         strEvents = 'No upcoming events found.'
     for event in events:
         start = event['start'].get('dateTime', event['start'].get('date'))
         date = datetime.datetime.strptime(start, '%Y-%m-%dT%H:%M:%S%z')
         strEvents += date.strftime('%b %d %H:%M') + ' - ' + event['summary'] + '\n'
+    strEvents += '```'
     await message.channel.send(strEvents)
     return
 
