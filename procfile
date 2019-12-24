@@ -1,1 +1,1 @@
-worker: python robobee/piggodbot.py
+worker: python piggodbot.py
