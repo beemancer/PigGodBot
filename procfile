@@ -1,1 +1,1 @@
-worker: python piggodbot.py
+web: python piggodbot.py
