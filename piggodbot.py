@@ -37,6 +37,10 @@ async def on_message(message):
         await PrintEq(message, 'America/Chicago')
         return
 
+    if message.content.startswith('$help'):
+        await message.channel.send("The only commands are $eqe, $eqw, and $eqc, how much help could you need?")
+        return
+
 async def PrintEq(message, tzReq):
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
