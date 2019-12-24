@@ -25,6 +25,10 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    if message.content.startswith('$help'):
+        await message.channel.send("The only commands are $eq <timezone>, $eqe, $eqw, and $eqc, how much help could you need?")
+        return
+
     if message.content.startswith('$eqe'):
         await PrintEq(message, 'America/New_York')
         return
@@ -37,8 +41,9 @@ async def on_message(message):
         await PrintEq(message, 'America/Chicago')
         return
 
-    if message.content.startswith('$help'):
-        await message.channel.send("The only commands are $eqe, $eqw, and $eqc, how much help could you need?")
+    if message.content.startswith('$eq '):
+        args = message.content.split()
+        await PrintEq(message, args[1])
         return
 
 async def PrintEq(message, tzReq):
