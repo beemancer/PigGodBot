@@ -44,14 +44,22 @@ except IOError:
 async def CheckEQCalendar():
     global eqEtag
     while True:
-        newEqEtag = GetEventsEtag(eqCalendarId)
-        if newEqEtag != eqEtag:
-            eqEtag = newEqEtag
-            with open('eqetag', 'w') as eqEtagFile:
-                eqEtagFile.write(eqEtag)
-            for k, v in eqChannels.items():
-                channel = client.get_channel(k)
-                await PrintEq(channel, v)
+        if client.is_ready():
+            newEqEtag = GetEventsEtag(eqCalendarId)
+            if newEqEtag != eqEtag:
+                eqEtag = newEqEtag
+                with open('eqetag', 'w') as eqEtagFile:
+                    eqEtagFile.write(eqEtag)
+                toRemove = []
+                for k, v in eqChannels.items():
+                    channel = client.get_channel(k)
+                    if channel != None:
+                        await PrintEq(channel, v)
+                    else:
+                        toRemove.append(k)
+                for i in toRemove:
+                    del eqChannels[i]
+                UpdateChannelsFile()
         await asyncio.sleep(60)
 
 client.loop.create_task(CheckEQCalendar())
