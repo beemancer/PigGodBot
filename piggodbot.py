@@ -25,13 +25,13 @@ eqCalendarId = 'pso2emgquest@gmail.com'
 
 eqChannels = {}
 try:
-    with open('eqchannels', 'r') as eqEtagFile:
-        for line in eqEtagFile:
+    with open('eqchannels', 'r') as eqChannelsFile:
+        for line in eqChannelsFile:
             channelPair = line.split()
             eqChannels[int(channelPair[0])] = channelPair[1]
 except IOError:
-    with open('eqchannels', 'w') as eqEtagFile:
-        eqEtagFile.write(eqEtag)
+    with open('eqchannels', 'w') as eqChannelsFile:
+        eqChannelsFile.write('')
 
 eqEtag = 'Smoke weed everyday'
 try:
