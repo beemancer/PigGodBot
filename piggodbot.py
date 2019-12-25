@@ -29,8 +29,9 @@ try:
         for line in eqEtagFile:
             channelPair = line.split()
             eqChannels[int(channelPair[0])] = channelPair[1]
-except:
-    print('aw shit')
+except IOError:
+    with open('eqchannels', 'w') as eqEtagFile:
+        eqEtagFile.write(eqEtag)
 
 eqEtag = 'Smoke weed everyday'
 try:
