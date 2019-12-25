@@ -11,12 +11,49 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+#other stuff
+import asyncio
+import time
+import threading
+
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 client = discord.Client()
-
 commandPrefix = '$'
+eqCalendarId = 'pso2emgquest@gmail.com'
+
+eqChannels = {}
+try:
+    with open('eqchannels', 'r') as eqEtagFile:
+        for line in eqEtagFile:
+            channelPair = line.split()
+            eqChannels[int(channelPair[0])] = channelPair[1]
+except:
+    print('aw shit')
+
+eqEtag = 'Smoke weed everyday'
+try:
+    with open('eqetag', 'r') as eqEtagFile:
+        eqEtag = eqEtagFile.readline()
+except IOError:
+    with open('eqetag', 'w') as eqEtagFile:
+        eqEtagFile.write(eqEtag)
+
+async def CheckEQCalendar():
+    global eqEtag
+    while True:
+        newEqEtag = GetEventsEtag(eqCalendarId)
+        if newEqEtag != eqEtag:
+            eqEtag = newEqEtag
+            with open('eqetag', 'w') as eqEtagFile:
+                eqEtagFile.write(eqEtag)
+            for k, v in eqChannels.items():
+                channel = client.get_channel(k)
+                await PrintEq(channel, v)
+        await asyncio.sleep(60)
+
+client.loop.create_task(CheckEQCalendar())
 
 @client.event
 async def on_ready():
@@ -28,7 +65,7 @@ async def on_message(message):
         return
 
     if message.content.startswith(commandPrefix):
-        content = message.content[1:]
+        content = message.content[1:].lower()
 
         if content.startswith('help'):
             helpMessage = '**Available commands:**\n```' + \
@@ -41,23 +78,45 @@ async def on_message(message):
             return
 
         if content.startswith('eqe'):
-            await PrintEq(message, 'America/New_York')
+            await PrintEq(message.channel, 'America/New_York')
             return
 
         if content.startswith('eqw'):
-            await PrintEq(message, 'America/Los_Angeles')
+            await PrintEq(message.channel, 'America/Los_Angeles')
             return
 
         if content.startswith('eqc'):
-            await PrintEq(message, 'America/Chicago')
+            await PrintEq(message.channel, 'America/Chicago')
+            return
+
+        if content.startswith('eqstart'):
+            args = message.content.split()
+            if message.channel.id in eqChannels:
+                await message.channel.send("This channel is already subscribed to EQ calendar updates")
+                return
+            if len(args) > 1:
+                eqChannels[message.channel.id] = args[1]
+            else:
+                eqChannels[message.channel.id] = 'GMT'
+            UpdateChannelsFile()
+            await message.channel.send("This channel is now subscribed to EQ calendar updates")
+            return
+
+        if content.startswith('eqstop'):
+            if message.channel.id in eqChannels:
+                del eqChannels[message.channel.id]
+                UpdateChannelsFile()
+                await message.channel.send("This channel is no longer subscribed to EQ calendar updates")
+            else:
+                await message.channel.send("This channel is not subscribed")
             return
 
         if content.startswith('eq'):
             args = message.content.split()
             if len(args) > 1:
-                await PrintEq(message, args[1])
+                await PrintEq(message.channel, args[1])
             else:
-                await PrintEq(message, 'UTC')
+                await PrintEq(message.channel, 'UTC')
             return
 
     if 'techer' in message.content.lower():
@@ -65,7 +124,54 @@ async def on_message(message):
         await message.add_reaction('<:Force:645433476979621889>')
         return
 
-async def PrintEq(message, tzReq):
+async def PrintEq(channel, tzReq):
+    service = GetCalendarService()
+
+    # Call the Calendar API
+    now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
+    events_result = service.events().list(
+        calendarId=eqCalendarId,
+        timeZone=tzReq,
+        timeMin=now,
+        singleEvents=True,
+        orderBy='startTime').execute()
+    events = events_result.get('items', [])
+
+    strEvents = '**Upcoming events (' + tzReq +'):**\n```'
+    if not events:
+        strEvents = 'No upcoming events found.'
+    else:
+        maxLines = 20
+        count = 0
+        for event in events:
+            count = count + 1
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            date = datetime.datetime.strptime(start, '%Y-%m-%dT%H:%M:%S%z')
+            strEvents += date.strftime('%b %d %H:%M') + ' - ' + event['summary'] + '\n'
+            if count >= maxLines:
+                strEvents += '```'
+                await channel.send(strEvents)
+                count = 0
+                strEvents = '```'
+    if count > 0:
+        strEvents += '```'
+        await channel.send(strEvents)
+    return
+
+def GetEventsEtag(calendarId):
+    service = GetCalendarService()
+
+    # Call the Calendar API
+    now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
+    events_result = service.events().list(
+        calendarId=eqCalendarId,
+        timeMin=now,
+        singleEvents=True,
+        orderBy='startTime').execute()
+    events = events_result.get('items', [])
+    return events_result.get('etag')+str(len(events))
+
+def GetCalendarService():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -84,30 +190,15 @@ async def PrintEq(message, tzReq):
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
+    return build('calendar', 'v3', credentials=creds)
 
-    service = build('calendar', 'v3', credentials=creds)
-
-    # Call the Calendar API
-    now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
-    events_result = service.events().list(
-        calendarId='pso2emgquest@gmail.com',
-        timeZone=tzReq,
-        timeMin=now,
-        singleEvents=True,
-        orderBy='startTime').execute()
-    events = events_result.get('items', [])
-
-    strEvents = '**Upcoming events (' + tzReq +'):**\n```'
-    if not events:
-        strEvents = 'No upcoming events found.'
-    else:
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            date = datetime.datetime.strptime(start, '%Y-%m-%dT%H:%M:%S%z')
-            strEvents += date.strftime('%b %d %H:%M') + ' - ' + event['summary'] + '\n'
-        strEvents += '```'
-    await message.channel.send(strEvents)
-    return
+def UpdateChannelsFile():
+    toWrite = ''
+    for k, v in eqChannels.items():
+        toWrite = toWrite + str(k) + ' ' + str(v) + '\n'
+    toWrite = toWrite[:-1]
+    with open('eqchannels', 'w') as eqChannelsFile:
+        eqChannelsFile.write(toWrite)
 
 tokenFile = open("bottoken", 'r')
 client.run(tokenFile.readline())
