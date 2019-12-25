@@ -70,6 +70,7 @@ async def on_message(message):
 
         if content.startswith('help'):
             helpMessage = '**Available commands:**\n```' + \
+                commandPrefix+'eqstart <timezone> - Subsribes the current channel for EQ updates\n' + \
                 commandPrefix+'eq <timezone> - Prints out the upcoming EQs in whatever timezone\n' + \
                 commandPrefix+'eqw - Prints out the upcoming EQs in US Best Coast time\n' + \
                 commandPrefix+'eqe - Prints out the upcoming EQs in US East time\n' + \
