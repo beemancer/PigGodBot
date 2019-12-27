@@ -101,6 +101,7 @@ async def on_message(message):
 
         if content.startswith('help'):
             helpMessage = '**Available commands:**\n```' + \
+                commandPrefix+'glams <first name> <surname> [world] - Prints out current glamours for a FFXIV character.  Pulls from Lodestone, which is pretty slow and only updates every 6 hours or so.\n' + \
                 commandPrefix+'eqstart <timezone> - Subsribes the current channel for EQ updates\n' + \
                 commandPrefix+'eq <timezone> - Prints out the upcoming EQs in whatever timezone\n' + \
                 commandPrefix+'eqw - Prints out the upcoming EQs in US Best Coast time\n' + \
