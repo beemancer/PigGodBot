@@ -279,6 +279,22 @@ async def PrintCharacter(message, character, fullName):
         server = profile['Character']['Server']
         portrait = profile['Character']['Portrait']
 
+        if not 'MainHand' in profile['Character']['GearSet']['Gear']:
+            mhName = "None"
+        else:
+            mhId = profile['Character']['GearSet']['Gear']['MainHand']['Mirage']
+            if mhId == None:
+                mhId = profile['Character']['GearSet']['Gear']['MainHand']['ID']
+            mhName = await GetXIVItemName(mhId)
+
+        if not 'OffHand' in profile['Character']['GearSet']['Gear']:
+            ohName = "None"
+        else:
+            ohId = profile['Character']['GearSet']['Gear']['OffHand']['Mirage']
+            if ohId == None:
+                ohId = profile['Character']['GearSet']['Gear']['OffHand']['ID']
+            ohName = await GetXIVItemName(ohId)
+
         if not 'Head' in profile['Character']['GearSet']['Gear']:
             headName = "None"
         else:
@@ -320,6 +336,8 @@ async def PrintCharacter(message, character, fullName):
             feetName = await GetXIVItemName(feetId)
 
         messageBody = '**' + name + '@' + server + '**```' + \
+            '\nMain Hand: ' + mhName + \
+            '\nOff Hand: ' + ohName + \
             '\nHead: ' + headName + \
             '\nBody: ' + bodyName + \
             '\nHands: ' + handsName + \
