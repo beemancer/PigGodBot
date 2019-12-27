@@ -3,6 +3,9 @@ from __future__ import print_function
 #discord stuff
 import discord
 
+#ffxiv stuff
+import xivapi
+
 #google doc stuff
 import datetime
 import pickle
@@ -13,6 +16,7 @@ from google.auth.transport.requests import Request
 
 #other stuff
 import asyncio
+import aiohttp
 import time
 import threading
 
@@ -21,8 +25,26 @@ SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 client = discord.Client()
 commandPrefix = '$'
-eqCalendarId = 'pso2emgquest@gmail.com'
 
+#FFXIV setup stuff
+xivClient = None
+xivClientReady = False
+async def SeupFFXIV():
+    global xivClient
+    global xivClientReady
+    xivkey = None
+    with open('xivkey', 'r') as xivKeyFile:
+        xivkey = xivKeyFile.readline()
+    loop = asyncio.get_event_loop()
+    session = aiohttp.ClientSession(loop=loop)
+    xivClient = xivapi.Client(session=session, api_key=xivkey)
+    xivClientReady = True
+
+client.loop.create_task(SeupFFXIV())
+#end FFXIV stuff
+
+#PSO2 setup stuff
+eqCalendarId = 'pso2emgquest@gmail.com'
 eqChannels = {}
 try:
     with open('eqchannels', 'r') as eqChannelsFile:
@@ -62,7 +84,8 @@ async def CheckEQCalendar():
                 UpdateChannelsFile()
         await asyncio.sleep(60)
 
-client.loop.create_task(CheckEQCalendar())
+#client.loop.create_task(CheckEQCalendar())
+#end PSO2 stuff
 
 @client.event
 async def on_ready():
@@ -127,6 +150,10 @@ async def on_message(message):
                 await PrintEq(message.channel, args[1])
             else:
                 await PrintEq(message.channel, 'UTC')
+            return
+
+        if content.startswith('glams'):
+            await PrintGlams(message)
             return
 
     if 'techer' in message.content.lower():
@@ -209,6 +236,108 @@ def UpdateChannelsFile():
     toWrite = toWrite[:-1]
     with open('eqchannels', 'w') as eqChannelsFile:
         eqChannelsFile.write(toWrite)
+
+async def PrintGlams(message):
+    if not xivClientReady:
+        return
+    args = message.content.split()
+    if len(args) < 3:
+        await message.channel.send('Usage: ' + commandPrefix + 'glams forename surname [world]')
+        return
+    if len(args) == 3:
+        character = await xivClient.character_search(
+            world='',
+            forename=args[1],
+            surname=args[2])
+        if (len(character['Results']) > 1):
+            resultsString = 'Found characters:'
+            for result in character['Results']:
+                resultsString = resultsString + '\n' + \
+                    result['Name'] + '@' + result['Server']
+            await message.channel.send(resultsString)
+            return
+        await PrintCharacter(message, character, args[1] + ' ' + args[2])
+    if len(args) == 4:
+        character = await xivClient.character_search(
+            world=args[3],
+            forename=args[1],
+            surname=args[2])
+        await PrintCharacter(message, character, args[1] + ' ' + args[2])
+    return
+
+async def PrintCharacter(message, character, fullName):
+    if (len(character['Results']) > 0):
+        trueResult = character['Results'][0]
+        for result in character['Results']:
+            if result['Name'] == fullName:
+                trueResult = result
+                break
+        profile = await xivClient.character_by_id(
+            lodestone_id=trueResult['ID'])
+        name = profile['Character']['Name']
+        server = profile['Character']['Server']
+        portrait = profile['Character']['Portrait']
+
+        if not 'Head' in profile['Character']['GearSet']['Gear']:
+            headName = "None"
+        else:
+            headId = profile['Character']['GearSet']['Gear']['Head']['Mirage']
+            if headId == None:
+                headId = profile['Character']['GearSet']['Gear']['Head']['ID']
+            headName = await GetXIVItemName(headId)
+
+        if not 'Body' in profile['Character']['GearSet']['Gear']:
+            bodyName = "None"
+        else:
+            bodyId = profile['Character']['GearSet']['Gear']['Body']['Mirage']
+            if bodyId == None:
+                bodyId = profile['Character']['GearSet']['Gear']['Body']['ID']
+            bodyName = await GetXIVItemName(bodyId)
+
+        if not 'Hands' in profile['Character']['GearSet']['Gear']:
+            handsName = "None"
+        else:
+            handsId = profile['Character']['GearSet']['Gear']['Hands']['Mirage']
+            if handsId == None:
+                handsId = profile['Character']['GearSet']['Gear']['Hands']['ID']
+            handsName = await GetXIVItemName(handsId)
+
+        if not 'Legs' in profile['Character']['GearSet']['Gear']:
+            legsName = "None"
+        else:
+            legsId = profile['Character']['GearSet']['Gear']['Legs']['Mirage']
+            if legsId == None:
+                legsId = profile['Character']['GearSet']['Gear']['Legs']['ID']
+            legsName = await GetXIVItemName(legsId)
+
+        if not 'Feet' in profile['Character']['GearSet']['Gear']:
+            feetName = "None"
+        else:
+            feetId = profile['Character']['GearSet']['Gear']['Feet']['Mirage']
+            if feetId == None:
+                feetId = profile['Character']['GearSet']['Gear']['Feet']['ID']
+            feetName = await GetXIVItemName(feetId)
+
+        messageBody = '**' + name + '@' + server + '**```' + \
+            '\nHead: ' + headName + \
+            '\nBody: ' + bodyName + \
+            '\nHands: ' + handsName + \
+            '\nLegs: ' + legsName + \
+            '\nFeet: ' + feetName + \
+            '```'
+
+        await message.channel.send(portrait)
+        await message.channel.send(messageBody)
+
+async def GetXIVItemName(itemID):
+    if not xivClientReady:
+        return
+    item = await xivClient.index_by_id(
+        index='Item',
+        content_id=itemID,
+        columns=['Name'],
+        language='en')
+    return item['Name']
 
 tokenFile = open("bottoken", 'r')
 client.run(tokenFile.readline())
