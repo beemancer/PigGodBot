@@ -26,7 +26,6 @@ SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 client = discord.Client()
 commandPrefix = '$'
 
-#FFXIV setup stuff
 xivClient = None
 xivClientReady = False
 async def SeupFFXIV():
@@ -40,10 +39,6 @@ async def SeupFFXIV():
     xivClient = xivapi.Client(session=session, api_key=xivkey)
     xivClientReady = True
 
-client.loop.create_task(SeupFFXIV())
-#end FFXIV stuff
-
-#PSO2 setup stuff
 eqCalendarId = 'pso2emgquest@gmail.com'
 eqChannels = {}
 try:
@@ -63,8 +58,11 @@ except IOError:
     with open('eqetag', 'w') as eqEtagFile:
         eqEtagFile.write(eqEtag)
 
-async def CheckEQCalendar():
+async def BotEventLoop():
+    await SeupFFXIV()
+
     global eqEtag
+    # Update EQ Calendar in subscribed channels
     while True:
         if client.is_ready():
             newEqEtag = GetEventsEtag(eqCalendarId)
@@ -84,8 +82,7 @@ async def CheckEQCalendar():
                 UpdateChannelsFile()
         await asyncio.sleep(60)
 
-#client.loop.create_task(CheckEQCalendar())
-#end PSO2 stuff
+client.loop.create_task(BotEventLoop())
 
 @client.event
 async def on_ready():
