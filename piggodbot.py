@@ -8,6 +8,7 @@ import xivapi
 
 #google doc stuff
 import datetime
+from datetime import timedelta
 import pickle
 import os.path
 from googleapiclient.discovery import build
@@ -164,10 +165,12 @@ async def PrintEq(channel, tzReq):
 
     # Call the Calendar API
     now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
+    later = (datetime.datetime.utcnow() + timedelta(days=31)).isoformat() + 'Z'
     events_result = service.events().list(
         calendarId=eqCalendarId,
         timeZone=tzReq,
         timeMin=now,
+        timeMax=later,
         singleEvents=True,
         orderBy='startTime').execute()
     events = events_result.get('items', [])
@@ -181,7 +184,14 @@ async def PrintEq(channel, tzReq):
         for event in events:
             count = count + 1
             start = event['start'].get('dateTime', event['start'].get('date'))
-            date = datetime.datetime.strptime(start, '%Y-%m-%dT%H:%M:%S%z')
+            try:
+                date = datetime.datetime.strptime(start, '%Y-%m-%dT%H:%M:%S%z')
+            except:
+                try:
+                    date = datetime.datetime.strptime(start, '%Y-%m-%d')
+                except:
+                    continue
+
             strEvents += date.strftime('%b %d %H:%M') + ' - ' + event['summary'] + '\n'
             if count >= maxLines:
                 strEvents += '```'
