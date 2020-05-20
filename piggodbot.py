@@ -208,9 +208,11 @@ def GetEventsEtag(calendarId):
 
     # Call the Calendar API
     now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
+    later = (datetime.datetime.utcnow() + timedelta(days=31)).isoformat() + 'Z'
     events_result = service.events().list(
         calendarId=eqCalendarId,
         timeMin=now,
+        timeMax=later,
         singleEvents=True,
         orderBy='startTime').execute()
     events = events_result.get('items', [])
