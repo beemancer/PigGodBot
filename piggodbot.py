@@ -155,7 +155,7 @@ async def on_message(message):
             await PrintGlams(message)
             return
 
-    if 'techer' in message.content.lower():
+    if 'techer' in message.content.lower() or 'techter' in message.content.lower():
         await message.add_reaction('<:Techer:645433477088411680>')
         await message.add_reaction('<:Force:645433476979621889>')
         return
