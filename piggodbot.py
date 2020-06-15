@@ -192,7 +192,7 @@ async def PrintEq(channel, tzReq):
                 except:
                     continue
 
-            strEvents += date.strftime('%b %d %H:%M') + ' - ' + event['summary'] + '\n'
+            strEvents += date.strftime('%b %d %I:%M %p') + ' - ' + event['summary'] + '\n'
             if count >= maxLines:
                 strEvents += '```'
                 await channel.send(strEvents)
