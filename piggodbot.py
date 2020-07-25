@@ -176,13 +176,13 @@ async def PrintEq(channel, tzReq):
     events = events_result.get('items', [])
 
     strEvents = '**Upcoming events (' + tzReq +'):**\n```'
+    maxLines = 20
+    count = 0
+    curMessage = 0
+    maxMessages = 2
     if not events:
         strEvents = 'No upcoming events found.'
     else:
-        maxLines = 20
-        count = 0
-        curMessage = 0
-        maxMessages = 2
         for event in events:
             count = count + 1
             start = event['start'].get('dateTime', event['start'].get('date'))
@@ -197,14 +197,15 @@ async def PrintEq(channel, tzReq):
             strEvents += date.strftime('%b %d %I:%M %p') + ' - ' + event['summary'] + '\n'
             if count >= maxLines:
                 strEvents += '```'
-                if curMessage < MaxMessages:
+                if curMessage < maxMessages:
                     await channel.send(strEvents)
                     curMessage = curMessage + 1
                 count = 0
                 strEvents = '```'
     if count > 0:
         strEvents += '```'
-        await channel.send(strEvents)
+        if curMessage < maxMessages:
+            await channel.send(strEvents)
     return
 
 def GetEventsEtag(calendarId):
