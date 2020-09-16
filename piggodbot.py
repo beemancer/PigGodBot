@@ -40,7 +40,7 @@ async def SeupFFXIV():
     xivClient = xivapi.Client(session=session, api_key=xivkey)
     xivClientReady = True
 
-eqCalendarId = 'pso2.schedule@gmail.com'
+eqCalendarId = 'nujrnhog654g3v0m0ljmjbp790@group.calendar.google.com'
 eqChannels = {}
 try:
     with open('eqchannels', 'r') as eqChannelsFile:
