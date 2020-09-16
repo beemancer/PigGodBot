@@ -222,7 +222,7 @@ def GetEventsEtag(calendarId):
         orderBy='startTime').execute()
     events = events_result.get('items', [])
     eventStr = ""
-    for event in events['items']:
+    for event in events:
         eventStr = eventStr + event['id']
     return eventStr+str(len(events))
 
