@@ -111,6 +111,7 @@ async def on_message(message):
             return
 
         if content.startswith('clearetag'):
+            global eqEtag
             eqEtag = 'wellfuck'
             return
         
