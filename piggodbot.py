@@ -115,7 +115,7 @@ async def on_message(message):
             eqEtag = 'wellfuck'
             return
         
-        if content.statswith('purge'):
+        if content.startswith('purge'):
             await message.channel.purge()
             return
         
