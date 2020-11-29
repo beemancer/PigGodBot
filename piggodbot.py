@@ -74,6 +74,7 @@ async def BotEventLoop():
                 toRemove = []
                 for k, v in eqChannels.items():
                     channel = client.get_channel(k)
+                    channel.purge()
                     if channel != None:
                         await PrintEq(channel, v)
                     else:
@@ -109,6 +110,10 @@ async def on_message(message):
             await message.channel.send(helpMessage)
             return
 
+        if content.startswith('clearetag'):
+            eqEtag = 'wellfuck'
+            return
+        
         if content.startswith('eqe'):
             await PrintEq(message.channel, 'America/New_York')
             return
