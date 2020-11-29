@@ -74,7 +74,7 @@ async def BotEventLoop():
                 toRemove = []
                 for k, v in eqChannels.items():
                     channel = client.get_channel(k)
-                    asyncio.get_event_loop().create_task(channel.purge(before=datetime.now()))
+                    await channel.purge()
                     if channel != None:
                         await PrintEq(channel, v)
                     else:
