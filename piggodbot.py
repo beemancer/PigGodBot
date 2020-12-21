@@ -42,6 +42,9 @@ async def SeupFFXIV():
 
 eqCalendarId = 'nujrnhog654g3v0m0ljmjbp790@group.calendar.google.com'
 eqChannels = {}
+mpaMsgs = {}
+mpaSizes = {}
+mpaLock = threading.Lock()
 try:
     with open('eqchannels', 'r') as eqChannelsFile:
         for line in eqChannelsFile:
@@ -64,25 +67,30 @@ async def BotEventLoop():
 
     global eqEtag
     # Update EQ Calendar in subscribed channels
+    loopCount = 0
     while True:
         if client.is_ready():
-            newEqEtag = GetEventsEtag(eqCalendarId)
-            if newEqEtag != eqEtag:
-                eqEtag = newEqEtag
-                with open('eqetag', 'w') as eqEtagFile:
-                    eqEtagFile.write(eqEtag)
-                toRemove = []
-                for k, v in eqChannels.items():
-                    channel = client.get_channel(k)
-                    await channel.purge()
-                    if channel != None:
-                        await PrintEq(channel, v)
-                    else:
-                        toRemove.append(k)
-                for i in toRemove:
-                    del eqChannels[i]
-                UpdateChannelsFile()
-        await asyncio.sleep(60)
+            await UpdateMPAs()
+
+            if loopCount % 12 == 0:
+                newEqEtag = GetEventsEtag(eqCalendarId)
+                if newEqEtag != eqEtag:
+                    eqEtag = newEqEtag
+                    with open('eqetag', 'w') as eqEtagFile:
+                        eqEtagFile.write(eqEtag)
+                    toRemove = []
+                    for k, v in eqChannels.items():
+                        channel = client.get_channel(k)
+                        await channel.purge()
+                        if channel != None:
+                            await PrintEq(channel, v)
+                        else:
+                            toRemove.append(k)
+                    for i in toRemove:
+                        del eqChannels[i]
+                    UpdateChannelsFile()
+        loopCount = loopCount + 1
+        await asyncio.sleep(5)
 
 client.loop.create_task(BotEventLoop())
 
@@ -94,10 +102,18 @@ async def on_ready():
 async def on_message(message):
     if message.author == client.user:
         return
+    
+    admin = False
+    if message.channel.permissions_for(message.author).administrator:
+        admin = True
 
     if message.content.startswith(commandPrefix):
         content = message.content[1:].lower()
 
+        if content.startswith('startmpa'):
+            await StartMPA(message)
+            return
+        
         if content.startswith('help'):
             helpMessage = '**Available commands:**\n```' + \
                 commandPrefix+'glams <first name> <surname> [world] - Prints out current glamours for a FFXIV character.  Pulls from Lodestone, which is pretty slow and only updates every 6 hours or so.\n' + \
@@ -110,28 +126,24 @@ async def on_message(message):
             await message.channel.send(helpMessage)
             return
 
-        if content.startswith('clearetag'):
+        if content.startswith('clearetag') and admin:
             global eqEtag
             eqEtag = 'wellfuck'
             return
         
-        if content.startswith('purge'):
-            await message.channel.purge()
-            return
-        
-        if content.startswith('eqe'):
+        if content.startswith('eqe') and admin:
             await PrintEq(message.channel, 'America/New_York')
             return
 
-        if content.startswith('eqw'):
+        if content.startswith('eqw') and admin:
             await PrintEq(message.channel, 'America/Los_Angeles')
             return
 
-        if content.startswith('eqc'):
+        if content.startswith('eqc') and admin:
             await PrintEq(message.channel, 'America/Chicago')
             return
 
-        if content.startswith('eqstart'):
+        if content.startswith('eqstart') and admin:
             args = message.content.split()
             if message.channel.id in eqChannels:
                 await message.channel.send("This channel is already subscribed to EQ calendar updates")
@@ -144,7 +156,7 @@ async def on_message(message):
             await message.channel.send("This channel is now subscribed to EQ calendar updates")
             return
 
-        if content.startswith('eqstop'):
+        if content.startswith('eqstop') and admin:
             if message.channel.id in eqChannels:
                 del eqChannels[message.channel.id]
                 UpdateChannelsFile()
@@ -153,7 +165,7 @@ async def on_message(message):
                 await message.channel.send("This channel is not subscribed")
             return
 
-        if content.startswith('eq'):
+        if content.startswith('eq') and admin:
             args = message.content.split()
             if len(args) > 1:
                 await PrintEq(message.channel, args[1])
@@ -164,11 +176,6 @@ async def on_message(message):
         if content.startswith('glams'):
             await PrintGlams(message)
             return
-
-    if 'techer' in message.content.lower() or 'techter' in message.content.lower():
-        await message.add_reaction('<:Techer:645433477088411680>')
-        await message.add_reaction('<:Force:645433476979621889>')
-        return
 
 async def PrintEq(channel, tzReq):
     service = GetCalendarService()
@@ -374,6 +381,7 @@ async def PrintCharacter(message, character, fullName):
 
         await message.channel.send(portrait)
         await message.channel.send(messageBody)
+    return
 
 async def GetXIVItemName(itemID):
     if not xivClientReady:
@@ -384,6 +392,306 @@ async def GetXIVItemName(itemID):
         columns=['Name'],
         language='en')
     return item['Name']
+
+@client.event
+async def on_reaction_add(reaction, user):
+    global mpaMsgs
+    global mpaLock
+    mpaLock.acquire()
+    for message in mpaMsgs:
+        if message.id == reaction.message.id:
+            messageDict = mpaMsgs[message]
+            if user in messageDict:
+                messageDict[user].append(reaction)
+            else:
+                messageDict[user] = []
+                messageDict[user].append(reaction)
+            mpaMsgs[message] = messageDict
+            break
+    mpaLock.release()
+    return
+
+@client.event
+async def on_reaction_remove(reaction, user):
+    global mpaMsgs
+    global mpaLock
+    mpaLock.acquire()
+    found = False
+    for message in mpaMsgs:
+        if message.id == reaction.message.id:
+            for foundUser in mpaMsgs[message]:
+                if foundUser.id == user.id:
+                    for foundReaction in mpaMsgs[message][foundUser]:
+                        if str(reaction.emoji) == str(foundReaction.emoji):
+                            mpaMsgs[message][foundUser].remove(foundReaction)
+                            found = True
+                            break
+                if not mpaMsgs[message][foundUser]:
+                    mpaMsgs[message].pop(user)
+                if found:
+                    break
+        if found:
+            break
+    mpaLock.release()
+    return
+
+async def StartMPA(message):
+    global mpaMsgs
+    global mpaSizes
+    global mpaLock
+    
+    args = message.content.split()
+    try:
+        if int(args[1])%4 != 0:
+            return
+    except:
+        return
+    body = "Setting everything up, please wait..."
+    newMsg = await message.channel.send(body)
+
+    await newMsg.add_reaction("<:Wave:731073709661749258>")
+    await newMsg.add_reaction("<:Class_Techer:789166122669703200>")
+    await newMsg.add_reaction("<:Class_Ranger:789166122720165909>")
+    await newMsg.add_reaction("<:Class_Hunter:789166122817421312>")
+    await newMsg.add_reaction("<:Class_Force:789166122502717466>")
+    await newMsg.add_reaction("<:Class_Fighter:789166122799726592>")
+    await newMsg.add_reaction("<:Class_Gunner:789166122745856030>")
+    await newMsg.add_reaction("<:Class_Braver:789165133086851082>")
+    await newMsg.add_reaction("<:Class_Bouncer:789166122795663430>")
+    await newMsg.add_reaction("<:Class_Summoner:789165132903088205>")
+    await newMsg.add_reaction("<:Class_Hero:788564090774749195>")
+    await newMsg.add_reaction("<:Class_Phantom:789166122816634931>")
+    await newMsg.add_reaction("<:Class_Etoile:724042850307670016>")
+    await newMsg.add_reaction("\N{LOCK}")
+
+    body = str(int(args[1])) + "-man MPA commencing, awaiting operatives!\n\nSelect your class below!  Additionally, select <:Wave:731073709661749258> to enlist as a Field Officer!"
+    await newMsg.edit(content=body)
+
+    mpaLock.acquire()
+    mpaMsgs[newMsg] = {}
+    mpaSizes[newMsg] = int(args[1])
+    mpaLock.release()
+    return
+
+async def UpdateMPAs():
+    global mpaMsgs
+    global mpaLock
+    mpaLock.acquire()
+    for message in mpaMsgs:
+        await UpdateMPA(message)
+    mpaLock.release()
+    return
+
+async def UpdateMPA(message):
+    global mpaMsgs
+    global mpaSizes
+    originalMsg = message.content
+    users = mpaMsgs[message].copy()
+    mpaSize = int(mpaSizes[message])
+    partiesPerMPA = int(mpaSize / 4)
+
+    # Get the total arks count
+    arksCount = 0
+    for user in users:
+        for reaction in users[user]:
+            if IsClass(reaction):
+                arksCount = arksCount + 1
+
+    numMPAs = int(1 + ((arksCount-1) / mpaSize))
+    mpa = {}
+    for x in range(numMPAs):
+        mpa[x] = {}
+        for y in range(partiesPerMPA):
+            mpa[x][y] = {"te":0, "ra":0, "leader":False, "members":[]}
+
+    # Start with people who are bringing guests, they are forced to lead parties
+    for k, v in users.items():
+        found = False
+        numSlots = 0
+        willLead = False
+        techers = 0
+        rangers = 0
+        name = k.display_name
+        nameList = []
+        for reaction in v:
+            if IsClass(reaction):
+                if numSlots < 1:
+                    nameList.append(str(reaction.emoji) + " " + name)
+                else:
+                    nameList.append(str(reaction.emoji) + " " + name + "\'s guest")
+                numSlots = numSlots + 1
+            if IsTecher(reaction):
+                techers = techers + 1
+            if IsRanger(reaction):
+                rangers = rangers + 1
+            if numSlots > 3:
+                break
+        if numSlots > 0:
+            willLead = True
+        # Look for parties that need leaders
+        if willLead:
+            for x in range(numMPAs):
+                for y in range(partiesPerMPA):
+                    if not mpa[x][y]["leader"]:
+                        found = True
+                        mpa[x][y]["members"] = nameList
+                        mpa[x][y]["leader"] = True
+                        mpa[x][y]["te"] = techers
+                        mpa[x][y]["ra"] = rangers
+                        users.pop(k)
+                        break
+                if found:
+                    break
+        if found:
+            break
+
+    # Find other leaders
+    for k, v in users.items():
+        found = False
+        willLead = False
+        techers = 0
+        rangers = 0
+        name = k.display_name
+        for reaction in v:
+            if IsClass(reaction):
+                name = str(reaction.emoji) + " " + name
+            if IsTecher(reaction):
+                techers = techers + 1
+            if IsRanger(reaction):
+                rangers = rangers + 1
+            if IsLeader(reaction):
+                willLead = True
+        # Look for parties that need leaders
+        if willLead:
+            for x in range(numMPAs):
+                for y in range(partiesPerMPA):
+                    if not mpa[x][y]["leader"]:
+                        found = True
+                        mpa[x][y]["members"].append(name)
+                        mpa[x][y]["leader"] = True
+                        mpa[x][y]["te"] = techers
+                        mpa[x][y]["ra"] = rangers
+                        users.pop(k)
+                        break
+                if found:
+                    break
+        if found:
+            break
+
+    # Fill in the rest
+    for k, v in users.items():
+        found = False
+        techers = 0
+        rangers = 0
+        name = k.display_name
+        for reaction in v:
+            if IsClass(reaction):
+                name = str(reaction.emoji) + " " + name
+            if IsTecher(reaction):
+                techers = techers + 1
+            if IsRanger(reaction):
+                rangers = rangers + 1
+        # Look for parties that have space
+        if willLead:
+            for x in range(numMPAs):
+                for y in range(partiesPerMPA):
+                    if len(mpa[x][y]["members"]) < 4:
+                        found = True
+                        mpa[x][y]["members"].append(name)
+                        mpa[x][y]["te"] = mpa[x][y]["te"] + techers
+                        mpa[x][y]["ra"] = mpa[x][y]["ra"] + rangers
+                        users.pop(k)
+                        break
+                if found:
+                    break
+        if found:
+            break
+
+    # Edit the message
+    messageContent = ""
+    for x in range(numMPAs):
+        messageContent = messageContent + "**MPA " + str(x + 1) + ":**\n"
+        for y in range(partiesPerMPA):
+            messageContent = messageContent + "Party " + str(y + 1) + ": "
+            if len(mpa[x][y]["members"]) > 0:
+                messageContent = messageContent + mpa[x][y]["members"][0] + " / "
+            else:
+                messageContent = messageContent + "*empty*" + " / "
+            if len(mpa[x][y]["members"]) > 1:
+                messageContent = messageContent + mpa[x][y]["members"][1] + " / "
+            else:
+                messageContent = messageContent + "*empty*" + " / "
+            if len(mpa[x][y]["members"]) > 2:
+                messageContent = messageContent + mpa[x][y]["members"][2] + " / "
+            else:
+                messageContent = messageContent + "*empty*" + " / "
+            if len(mpa[x][y]["members"]) > 3:
+                messageContent = messageContent + mpa[x][y]["members"][3] + "\n\n"
+            else:
+                messageContent = messageContent + "*empty*\n\n"
+
+    if not messageContent:
+        messageContent = str(mpaSize) + "-man MPA commencing, awaiting operatives!\n\nSelect your class below!  Additionally, select <:Wave:731073709661749258> to enlist as a Field Officer!"
+    else:
+        messageContent = messageContent + "Select your class below!  Additionally, select <:Wave:731073709661749258> to enlist as a Field Officer!"
+
+    locked = False
+    fetchedMessage = await message.channel.fetch_message(message.id)
+    for reaction in fetchedMessage.reactions:
+        if IsLock(reaction) and reaction.count > 1:
+            locked = True
+            break
+
+    if locked:
+        if "This MPA is locked! I'm still tracking reactions, though, unlock me to continue!" not in originalMsg:
+            lockedContent = originalMsg + "\n\nThis MPA is locked! I'm still tracking reactions, though, unlock me to continue!"
+        else:
+            lockedContent = originalMsg
+        await message.edit(content=lockedContent)
+    else:
+        await message.edit(content=messageContent)
+    return
+
+def IsClass(reaction):
+    reactionStr = str(reaction)
+    classList = [
+        "<:Class_Techer:789166122669703200>",
+        "<:Class_Ranger:789166122720165909>",
+        "<:Class_Hunter:789166122817421312>",
+        "<:Class_Force:789166122502717466>",
+        "<:Class_Fighter:789166122799726592>",
+        "<:Class_Gunner:789166122745856030>",
+        "<:Class_Braver:789165133086851082>",
+        "<:Class_Bouncer:789166122795663430>",
+        "<:Class_Summoner:789165132903088205>",
+        "<:Class_Hero:788564090774749195>",
+        "<:Class_Phantom:789166122816634931>",
+        "<:Class_Etoile:724042850307670016>"]
+    return reactionStr in classList
+
+def IsLeader(reaction):
+    reactionStr = str(reaction)
+    leaderList = [
+        "<:Wave:731073709661749258>"]
+    return reactionStr in leaderList
+
+def IsTecher(reaction):
+    reactionStr = str(reaction)
+    classList = [
+        "<:Class_Techer:789166122669703200>"]
+    return reactionStr in classList
+
+def IsRanger(reaction):
+    reactionStr = str(reaction)
+    classList = [
+        "<:Class_Ranger:789166122720165909>"]
+    return reactionStr in classList
+
+def IsLock(reaction):
+    reactionStr = str(reaction)
+    lockList = [
+        "\N{LOCK}"]
+    return reactionStr in lockList
 
 tokenFile = open("bottoken", 'r')
 client.run(tokenFile.readline())
