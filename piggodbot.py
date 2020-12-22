@@ -67,32 +67,34 @@ async def BotEventLoop():
 
     global eqEtag
     # Update EQ Calendar in subscribed channels
-    loopCount = 0
+    while True:
+        if client.is_ready():
+            newEqEtag = GetEventsEtag(eqCalendarId)
+            if newEqEtag != eqEtag:
+                eqEtag = newEqEtag
+                with open('eqetag', 'w') as eqEtagFile:
+                    eqEtagFile.write(eqEtag)
+                toRemove = []
+                for k, v in eqChannels.items():
+                    channel = client.get_channel(k)
+                    await channel.purge()
+                    if channel != None:
+                        await PrintEq(channel, v)
+                    else:
+                        toRemove.append(k)
+                for i in toRemove:
+                    del eqChannels[i]
+                UpdateChannelsFile()
+        await asyncio.sleep(60)
+
+async def MPAEventLoop():
     while True:
         if client.is_ready():
             await UpdateMPAs()
-
-            if loopCount % 12 == 0:
-                newEqEtag = GetEventsEtag(eqCalendarId)
-                if newEqEtag != eqEtag:
-                    eqEtag = newEqEtag
-                    with open('eqetag', 'w') as eqEtagFile:
-                        eqEtagFile.write(eqEtag)
-                    toRemove = []
-                    for k, v in eqChannels.items():
-                        channel = client.get_channel(k)
-                        await channel.purge()
-                        if channel != None:
-                            await PrintEq(channel, v)
-                        else:
-                            toRemove.append(k)
-                    for i in toRemove:
-                        del eqChannels[i]
-                    UpdateChannelsFile()
-        loopCount = loopCount + 1
         await asyncio.sleep(5)
 
 client.loop.create_task(BotEventLoop())
+client.loop.create_task(MPAEventLoop())
 
 @client.event
 async def on_ready():
@@ -100,12 +102,17 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author.id == client.user.id:
+        return
+    if message.author.bot:
         return
     
     admin = False
-    if message.channel.permissions_for(message.author).administrator:
-        admin = True
+    try:
+        if message.channel.permissions_for(message.author).administrator:
+            admin = True
+    except:
+        return
 
     if message.content.startswith(commandPrefix):
         content = message.content[1:].lower()
@@ -477,18 +484,29 @@ async def UpdateMPAs():
     global mpaMsgs
     global mpaLock
     mpaLock.acquire()
-    for message in mpaMsgs:
-        await UpdateMPA(message)
+    mpaMsgsCopy = mpaMsgs.copy()
     mpaLock.release()
+    for message in mpaMsgsCopy:
+        try:
+            fetchedMessage = await message.channel.fetch_message(message.id)
+        except Exception as e:
+            mpaLock.acquire()
+            mpaMsgs.pop(message)
+            mpaLock.release()
+            break
+        await UpdateMPA(message, fetchedMessage)
     return
 
-async def UpdateMPA(message):
+async def UpdateMPA(message, fetchedMessage):
     global mpaMsgs
     global mpaSizes
+    global mpaLock
+    mpaLock.acquire()
     originalMsg = message.content
     users = mpaMsgs[message].copy()
     mpaSize = int(mpaSizes[message])
     partiesPerMPA = int(mpaSize / 4)
+    mpaLock.release()
 
     # Get the total arks count
     arksCount = 0
@@ -636,7 +654,6 @@ async def UpdateMPA(message):
         messageContent = messageContent + "Select your class below!  Additionally, select <:Wave:731073709661749258> to enlist as a Field Officer!"
 
     locked = False
-    fetchedMessage = await message.channel.fetch_message(message.id)
     for reaction in fetchedMessage.reactions:
         if IsLock(reaction) and reaction.count > 1:
             locked = True
@@ -647,9 +664,11 @@ async def UpdateMPA(message):
             lockedContent = originalMsg + "\n\nThis MPA is locked! I'm still tracking reactions, though, unlock me to continue!"
         else:
             lockedContent = originalMsg
-        await message.edit(content=lockedContent)
+        if message.content != lockedContent:
+            await message.edit(content=lockedContent)
     else:
-        await message.edit(content=messageContent)
+        if message.content != messageContent:
+            await message.edit(content=messageContent)
     return
 
 def IsClass(reaction):
