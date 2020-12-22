@@ -20,6 +20,7 @@ import asyncio
 import aiohttp
 import time
 import threading
+import random
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -664,7 +665,7 @@ async def UpdateMPA(message, fetchedMessage):
     # Edit the message
     messageContent = ""
     for x in range(numMPAs):
-        messageContent = messageContent + "**MPA " + str(x + 1) + ":**\n"
+        messageContent = messageContent + "**MPA " + str(x + 1) + " (Password: " + str(GetPassword(message, x)) + ")**\n"
         for y in range(partiesPerMPA):
             messageContent = messageContent + "Party " + str(y + 1) + ": "
             if len(mpa[x][y]["members"]) > 0:
@@ -747,6 +748,10 @@ def IsLock(reaction):
     lockList = [
         "\N{LOCK}"]
     return reactionStr in lockList
+
+def GetPassword(message, x):
+    random.seed(message.id+x)
+    return random.randint(1, 999)
 
 tokenFile = open("bottoken", 'r')
 client.run(tokenFile.readline())
