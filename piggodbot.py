@@ -511,11 +511,20 @@ async def UpdateMPA(message, fetchedMessage):
     # Get the total arks count
     arksCount = 0
     for user in users:
+        numSlots = 0
         for reaction in users[user]:
             if IsClass(reaction):
                 arksCount = arksCount + 1
+                numSlots = numSlots + 1
+            if numSlots >= 4:
+                break
 
     numMPAs = int(1 + ((arksCount-1) / mpaSize))
+    mpaFull = arksCount & mpaSize == 0
+    lastMPARequiringLeaders = numMPAs
+    if not mpaFull:
+        lastMPARequiringLeaders = numMPAs - 1
+
     mpa = {}
     for x in range(numMPAs):
         mpa[x] = {}
@@ -523,106 +532,133 @@ async def UpdateMPA(message, fetchedMessage):
             mpa[x][y] = {"te":0, "ra":0, "leader":False, "members":[]}
 
     # Start with people who are bringing guests, they are forced to lead parties
-    for k, v in users.items():
+    while True:
         found = False
-        numSlots = 0
-        willLead = False
-        techers = 0
-        rangers = 0
-        name = k.display_name
-        nameList = []
-        for reaction in v:
-            if IsClass(reaction):
-                if numSlots < 1:
-                    nameList.append(str(reaction.emoji) + " " + name)
-                else:
-                    nameList.append(str(reaction.emoji) + " " + name + "\'s guest")
-                numSlots = numSlots + 1
-            if IsTecher(reaction):
-                techers = techers + 1
-            if IsRanger(reaction):
-                rangers = rangers + 1
-            if numSlots > 3:
-                break
-        if numSlots > 0:
-            willLead = True
-        # Look for parties that need leaders
-        if willLead:
-            for x in range(numMPAs):
-                for y in range(partiesPerMPA):
-                    if not mpa[x][y]["leader"]:
-                        found = True
-                        mpa[x][y]["members"] = nameList
-                        mpa[x][y]["leader"] = True
-                        mpa[x][y]["te"] = techers
-                        mpa[x][y]["ra"] = rangers
-                        users.pop(k)
-                        break
-                if found:
+        for k, v in users.items():
+            numSlots = 0
+            willLead = False
+            techers = 0
+            rangers = 0
+            name = k.display_name
+            nameList = []
+            for reaction in v:
+                if IsClass(reaction):
+                    if numSlots < 1:
+                        nameList.append(str(reaction.emoji) + " " + name)
+                    else:
+                        nameList.append(str(reaction.emoji) + " " + name + "\'s guest")
+                    numSlots = numSlots + 1
+                if IsTecher(reaction):
+                    techers = techers + 1
+                if IsRanger(reaction):
+                    rangers = rangers + 1
+                if numSlots > 3:
                     break
-        if found:
+            if numSlots > 1:
+                willLead = True
+            # Look for parties that need leaders
+            if willLead:
+                for x in range(lastMPARequiringLeaders):
+                    for y in range(partiesPerMPA):
+                        if not mpa[x][y]["leader"]:
+                            found = True
+                            mpa[x][y]["members"] = nameList
+                            mpa[x][y]["leader"] = True
+                            mpa[x][y]["te"] = techers
+                            mpa[x][y]["ra"] = rangers
+                            users.pop(k)
+                            break
+                    if found:
+                        break
+                # no empty parties, see if we can fill
+                if not found:
+                    for x in range(numMPAs):
+                        for y in range(partiesPerMPA):
+                            if len(mpa[x][y]["members"]) <= 4 - numSlots:
+                                found = True
+                                for appendName in nameList:
+                                    mpa[x][y]["members"].append(appendName)
+                                mpa[x][y]["te"] = mpa[x][y]["te"] + techers
+                                mpa[x][y]["ra"] = mpa[x][y]["ra"] + rangers
+                                users.pop(k)
+                                break
+                        if found:
+                            break
+                # there isn't room either, so they're getting split up I guess
+            if found:
+                break
+        if not found:
             break
 
     # Find other leaders
-    for k, v in users.items():
+    while True:
         found = False
-        willLead = False
-        techers = 0
-        rangers = 0
-        name = k.display_name
-        for reaction in v:
-            if IsClass(reaction):
-                name = str(reaction.emoji) + " " + name
-            if IsTecher(reaction):
-                techers = techers + 1
-            if IsRanger(reaction):
-                rangers = rangers + 1
-            if IsLeader(reaction):
-                willLead = True
-        # Look for parties that need leaders
-        if willLead:
-            for x in range(numMPAs):
-                for y in range(partiesPerMPA):
-                    if not mpa[x][y]["leader"]:
-                        found = True
-                        mpa[x][y]["members"].append(name)
-                        mpa[x][y]["leader"] = True
-                        mpa[x][y]["te"] = techers
-                        mpa[x][y]["ra"] = rangers
-                        users.pop(k)
+        for k, v in users.items():
+            willLead = False
+            techers = 0
+            rangers = 0
+            name = k.display_name
+            foundClass = False
+            for reaction in v:
+                if IsClass(reaction):
+                    name = str(reaction.emoji) + " " + name
+                    foundClass = True
+                if IsTecher(reaction):
+                    techers = techers + 1
+                if IsRanger(reaction):
+                    rangers = rangers + 1
+                if IsLeader(reaction):
+                    willLead = True
+            # Look for parties that need leaders
+            if willLead and foundClass:
+                for x in range(lastMPARequiringLeaders):
+                    for y in range(partiesPerMPA):
+                        if not mpa[x][y]["leader"]:
+                            found = True
+                            mpa[x][y]["members"].append(name)
+                            mpa[x][y]["leader"] = True
+                            mpa[x][y]["te"] = techers
+                            mpa[x][y]["ra"] = rangers
+                            users.pop(k)
+                            break
+                    if found:
                         break
-                if found:
-                    break
-        if found:
+            #if we didn't find a party that needs a leader, treat this like a normal player below
+            if found:
+                break
+        if not found:
             break
 
     # Fill in the rest
+    remainingUsers = []
     for k, v in users.items():
-        found = False
-        techers = 0
-        rangers = 0
         name = k.display_name
+        numSlots = 0
         for reaction in v:
             if IsClass(reaction):
-                name = str(reaction.emoji) + " " + name
-            if IsTecher(reaction):
-                techers = techers + 1
-            if IsRanger(reaction):
-                rangers = rangers + 1
-        # Look for parties that have space
-        if willLead:
+                if numSlots < 1:
+                    remainingUsers.append(str(reaction.emoji) + " " + name)
+                else:
+                    remainingUsers.append(str(reaction.emoji) + " " + name + "\'s guest")
+                numSlots = numSlots + 1
+                if numSlots >= 4:
+                    break
+
+    while remainingUsers:
+        found = False
+        for normalUser in remainingUsers:
             for x in range(numMPAs):
                 for y in range(partiesPerMPA):
                     if len(mpa[x][y]["members"]) < 4:
                         found = True
-                        mpa[x][y]["members"].append(name)
-                        mpa[x][y]["te"] = mpa[x][y]["te"] + techers
-                        mpa[x][y]["ra"] = mpa[x][y]["ra"] + rangers
-                        users.pop(k)
+                        mpa[x][y]["members"].append(normalUser)
+                        remainingUsers.remove(normalUser)
                         break
                 if found:
                     break
-        if found:
+            if found:
+                break
+        if not found:
             break
 
     # Edit the message
