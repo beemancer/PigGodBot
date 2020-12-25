@@ -525,6 +525,8 @@ async def UpdateMPA(message, fetchedMessage):
     lastMPARequiringLeaders = numMPAs
     if not mpaFull:
         lastMPARequiringLeaders = numMPAs - 1
+    if lastMPARequiringLeaders < 1:
+        lastMPARequiringLeaders = 1
 
     mpa = {}
     for x in range(numMPAs):
