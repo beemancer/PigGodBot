@@ -470,6 +470,7 @@ async def StartMPA(message):
     await newMsg.add_reaction("<:Class_Hero:788564090774749195>")
     await newMsg.add_reaction("<:Class_Phantom:789166122816634931>")
     await newMsg.add_reaction("<:Class_Etoile:724042850307670016>")
+    await newMsg.add_reaction("<:Class_Luster:788563161020104766>")
     await newMsg.add_reaction("\N{LOCK}")
 
     body = str(int(args[1])) + "-man MPA commencing, awaiting operatives!\n\nSelect your class below!  Additionally, select <:Wave:731073709661749258> to enlist as a Field Officer!"
@@ -724,7 +725,8 @@ def IsClass(reaction):
         "<:Class_Summoner:789165132903088205>",
         "<:Class_Hero:788564090774749195>",
         "<:Class_Phantom:789166122816634931>",
-        "<:Class_Etoile:724042850307670016>"]
+        "<:Class_Etoile:724042850307670016>",
+        "<:Class_Luster:788563161020104766>"]
     return reactionStr in classList
 
 def IsLeader(reaction):
