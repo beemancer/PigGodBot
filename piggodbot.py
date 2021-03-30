@@ -139,15 +139,15 @@ async def on_message(message):
             eqEtag = 'wellfuck'
             return
         
-        if content.startswith('eqe') and admin:
+        if content.startswith('eqe'):
             await PrintEq(message.channel, 'America/New_York')
             return
 
-        if content.startswith('eqw') and admin:
+        if content.startswith('eqw'):
             await PrintEq(message.channel, 'America/Los_Angeles')
             return
 
-        if content.startswith('eqc') and admin:
+        if content.startswith('eqc'):
             await PrintEq(message.channel, 'America/Chicago')
             return
 
@@ -173,7 +173,7 @@ async def on_message(message):
                 await message.channel.send("This channel is not subscribed")
             return
 
-        if content.startswith('eq') and admin:
+        if content.startswith('eq'):
             args = message.content.split()
             if len(args) > 1:
                 await PrintEq(message.channel, args[1])
